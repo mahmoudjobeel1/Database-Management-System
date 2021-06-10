@@ -1,4 +1,5 @@
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class Bucket implements Serializable {
@@ -134,9 +135,23 @@ public class Bucket implements Serializable {
     }
 
     public void print() {
+//        for (int i = 0; i < getBucketTuples().size(); i++) {
+//            System.out.println(getBucketTuples().get(i) + " " + getPageReference().get(i));
+//        }
         for (int i = 0; i < getBucketTuples().size(); i++) {
-            System.out.println(getBucketTuples().get(i) + " " + getPageReference().get(i));
+            Object[] a=getBucketTuples().get(i).values().toArray(new Object[0]);
+            for (int k = 0; k < a.length; k++) {
+                Object o = a[k];
+                if (o instanceof Date) {
+                    System.out.print(new SimpleDateFormat("yyyy-MM-dd").format((Date) o) + " ");
+                } else {
+                    System.out.print(o + " ");
+                }
+            }
+            System.out.print(getPageReference().get(i));
+            System.out.println();
         }
+
 
     }
 

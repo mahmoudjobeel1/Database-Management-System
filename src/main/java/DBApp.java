@@ -3,6 +3,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class DBApp implements DBAppInterface {
@@ -75,11 +76,18 @@ public class DBApp implements DBAppInterface {
     @Override
     public void createIndex(String tableName, String[] columnNames) throws DBAppException {
         //check index if true
-        if (Utilities.checkIfIndexIsTrue(tableName, columnNames)) {
-            //TODO i dont know what to do
-            //throw new DBAppException("There is an index on a column already");
+   //    if (Utilities.checkIfIndexIsTrue(tableName, columnNames)) {
+//
+//            //throw new DBAppException("There is an index on a column already");
+//        }
+//
+        if (!Utilities.containsTableName(tableName)) throw new DBAppException("Table does not exists!");
+        for (int i = 0; i < columnNames.length; i++) {
+            if(!Utilities.columnexist(tableName,columnNames[i])){
+                throw new DBAppException("Column name does not exist!");
+            }
         }
-        //create
+
         Table t = Table.deserializeTable(tableName);
         Grid g = new Grid(tableName, t.NextGridName(), columnNames, maximumKeysCountinIndexBucket);
         t.getGridNames().add(g.getGridName());
@@ -149,11 +157,9 @@ public class DBApp implements DBAppInterface {
 
         //check if update on primary key
         String[] y = Utilities.getPKofTableByItsName(tableName);
-        if(columnNameValue.containsKey(y[0])){
+        if (columnNameValue.containsKey(y[0])) {
             throw new DBAppException("Can not update primary key value");
         }
-
-
 
 
         Table t = Table.deserializeTable(tableName);
@@ -172,8 +178,8 @@ public class DBApp implements DBAppInterface {
         }
 
         Hashtable<String, Object> tupleToDelete = new Hashtable<>();
-        tupleToDelete.put(y[0],x);
-        Vector<Hashtable<String, Object>> current = t.deleteFromPage(p.getPageFileName(),tupleToDelete, x);
+        tupleToDelete.put(y[0], x);
+        Vector<Hashtable<String, Object>> current = t.deleteFromPage(p.getPageFileName(), tupleToDelete, x);
         //System.out.println(current+" "+p.getPrimaryKeys());
         for (int i = 0; i < t.getGridNames().size(); i++) {
             //if(t.getGridNames().get(i).equals(g.getGridName()))
@@ -182,7 +188,7 @@ public class DBApp implements DBAppInterface {
             g2.deleteAllTuplesGiven(current);
             Grid.serializeGrid(g2);
         }
-        Hashtable<String, Object> updatedEntry=current.get(0);
+        Hashtable<String, Object> updatedEntry = current.get(0);
         updatedEntry.remove("PageReference");
         Set<String> keys = columnNameValue.keySet();
         Iterator<String> itr = keys.iterator();
@@ -192,7 +198,7 @@ public class DBApp implements DBAppInterface {
         }
         Table.serializeTable(t);
         //t.print();
-        insertIntoTable(tableName,updatedEntry);
+        insertIntoTable(tableName, updatedEntry);
 
         //Hashtable<String, String> colDataType = Utilities.getColumnDatatype(tableName);
 //        Set<String> keys = columnNameValue.keySet();
@@ -214,7 +220,7 @@ public class DBApp implements DBAppInterface {
 
     @Override
     public void deleteFromTable(String tableName, Hashtable<String, Object> columnNameValue) throws DBAppException {
-
+        if (!Utilities.containsTableName(tableName)) throw new DBAppException("Table does not exists!");
         checkInsertedDataTypes(tableName, columnNameValue);
 
         Table t = Table.deserializeTable(tableName);
@@ -291,21 +297,30 @@ public class DBApp implements DBAppInterface {
     public Iterator selectFromTable(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
         // check sqlterms validation
         //Hashtable<String,Object> hashtable=new Hashtable<>();
-        for(SQLTerm x:sqlTerms){
+        for (SQLTerm x : sqlTerms) {
             Utilities.containsTableName(x._strTableName);
-            Utilities.columnexist(x._strTableName,x._strColumnName);
-            String datatype=Utilities.getColumnDatatype(x._strTableName).get(x._strColumnName);
+            Utilities.columnexist(x._strTableName, x._strColumnName);
+            String datatype = Utilities.getColumnDatatype(x._strTableName).get(x._strColumnName);
 
-            if(!((x._objValue.getClass().getName()).equals(datatype))){
+            if (!((x._objValue.getClass().getName()).equals(datatype))) {
                 throw new DBAppException("objValue datatype doesn't match column datatype");
             }
             //hashtable.put(x._strColumnName,x._objValue);
         }
 
         //try2
+        //CASE if only one sqlterm
+        if(sqlTerms.length==1){
 
-        Vector<Hashtable<String,Object>> result= perform(sqlTerms,arrayOperators);
-        return result.iterator();
+            Vector<SQLTerm> terms=new Vector<>();
+            terms.add(sqlTerms[0]);
+            Vector<Hashtable<String, Object>> result =performAndOnSqlTerms(terms);
+            return result.iterator();
+        }else{
+            Vector<Hashtable<String, Object>> result = perform(sqlTerms, arrayOperators);
+            return result.iterator();
+        }
+
         //try1
         /*
 
@@ -327,64 +342,72 @@ public class DBApp implements DBAppInterface {
          */
 
 
-
     }
-    public static  Vector<Hashtable<String,Object>> perform(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
-        Object [] postfixExpression=infixToPostfix(merge(sqlTerms,arrayOperators));
-        Stack<Object> stack=new Stack<>();
-        for(Object x:postfixExpression){
-            if(x instanceof SQLTerm){
+
+    public static Vector<Hashtable<String, Object>> perform(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
+        Object[] postfixExpression = infixToPostfix(merge(sqlTerms, arrayOperators));
+        Stack<Object> stack = new Stack<>();
+        for (Object x : postfixExpression) {
+            if (x instanceof SQLTerm) {
                 stack.push(x);
-            }else{
-                Object o1=stack.pop();
-                Object o2=stack.pop();
-                stack.add(execute((String) x,o1,o2));
+            } else {
+                Object o1 = stack.pop();
+                Object o2 = stack.pop();
+                stack.add(execute((String) x, o1, o2));
             }
         }
-        Vector<Hashtable<String,Object>> result= (Vector<Hashtable<String, Object>>) stack.pop();
+        Vector<Hashtable<String, Object>> result = (Vector<Hashtable<String, Object>>) stack.pop();
         return result;
     }
-    public static Object [] merge(SQLTerm[] sqlTerms, String[] arrayOperators){
-        Object [] arr=new Object[sqlTerms.length+arrayOperators.length];
-        int j=0;
-        for(int i=0;i<arrayOperators.length;i++){
-            arr[j++]=sqlTerms[i];
-            arr[j++]=arrayOperators[i];
+
+    public static Object[] merge(SQLTerm[] sqlTerms, String[] arrayOperators) {
+        Object[] arr = new Object[sqlTerms.length + arrayOperators.length];
+        int j = 0;
+        for (int i = 0; i < arrayOperators.length; i++) {
+            arr[j++] = sqlTerms[i];
+            arr[j++] = arrayOperators[i];
         }
-        arr[j]=sqlTerms[sqlTerms.length-1];
-        return  arr;
+        arr[j] = sqlTerms[sqlTerms.length - 1];
+        return arr;
     }
 
-    public static  Vector<Hashtable<String,Object>> execute(String op,Object o1,Object o2) throws DBAppException {
-        Vector<Hashtable<String,Object>> vector=new Vector<>();
+    public static Vector<Hashtable<String, Object>> execute(String op, Object o1, Object o2) throws DBAppException {
+        Vector<Hashtable<String, Object>> vector = new Vector<>();
 
-        switch (op){
-            case "OR": vector=executeOR(o1, o2); break;
-            case "AND": vector=executeAND(o1,o2); break;
-            case "XOR": vector=executeXOR(o1, o2); break;
+        switch (op) {
+            case "OR":
+                vector = executeOR(o1, o2);
+                break;
+            case "AND":
+                vector = executeAND(o1, o2);
+                break;
+            case "XOR":
+                vector = executeXOR(o1, o2);
+                break;
         }
         return vector;
     }
-    public static Vector<Hashtable<String,Object>> executeXOR(Object o1,Object o2) throws DBAppException {
-        if (o1 instanceof  SQLTerm){
-            Vector<SQLTerm> v=new Vector<>();
+
+    public static Vector<Hashtable<String, Object>> executeXOR(Object o1, Object o2) throws DBAppException {
+        if (o1 instanceof SQLTerm) {
+            Vector<SQLTerm> v = new Vector<>();
             v.add((SQLTerm) o1);
-            o1=performAndOnSqlTerms(v);
+            o1 = performAndOnSqlTerms(v);
         }
-        if(o2 instanceof SQLTerm){
-            Vector<SQLTerm> v=new Vector<>();
+        if (o2 instanceof SQLTerm) {
+            Vector<SQLTerm> v = new Vector<>();
             v.add((SQLTerm) o2);
-            o2=performAndOnSqlTerms(v);
+            o2 = performAndOnSqlTerms(v);
         }
-        Vector<Hashtable<String,Object>> v1= (Vector<Hashtable<String, Object>>) o1;
-        Vector<Hashtable<String,Object>> v2= (Vector<Hashtable<String, Object>>) o2;
-        Vector<Hashtable<String,Object>> v=new Vector<>();
-        for(Hashtable<String,Object> x:v1){
-            if(v2.contains(x)){
+        Vector<Hashtable<String, Object>> v1 = (Vector<Hashtable<String, Object>>) o1;
+        Vector<Hashtable<String, Object>> v2 = (Vector<Hashtable<String, Object>>) o2;
+        Vector<Hashtable<String, Object>> v = new Vector<>();
+        for (Hashtable<String, Object> x : v1) {
+            if (v2.contains(x)) {
                 v.add(x);
             }
         }
-        for(Hashtable<String,Object> x:v){
+        for (Hashtable<String, Object> x : v) {
             v1.remove(x);
             v2.remove(x);
         }
@@ -393,10 +416,10 @@ public class DBApp implements DBAppInterface {
     }
 
     private static Vector<Hashtable<String, Object>> removeDuplicates(Vector<Vector<Hashtable<String, Object>>> allTuplesFromAnds) {
-        Vector<Hashtable<String, Object>> result=new Vector<>();
-        for(Vector<Hashtable<String, Object>> x:allTuplesFromAnds){
-            for(Hashtable<String, Object> y:x){
-                if(!result.contains(y)){
+        Vector<Hashtable<String, Object>> result = new Vector<>();
+        for (Vector<Hashtable<String, Object>> x : allTuplesFromAnds) {
+            for (Hashtable<String, Object> y : x) {
+                if (!result.contains(y)) {
                     result.add(y);
                 }
             }
@@ -404,23 +427,23 @@ public class DBApp implements DBAppInterface {
         return result;
     }
 
-    public static Vector<Hashtable<String,Object>> performAndOnSqlTerms(Vector<SQLTerm> toBeAnded) throws DBAppException {
+    public static Vector<Hashtable<String, Object>> performAndOnSqlTerms(Vector<SQLTerm> toBeAnded) throws DBAppException {
         //TODO tobeanded cant be empty!!
-        String tableName=toBeAnded.get(0)._strTableName;
-        Hashtable<String,Object> hashtable=new Hashtable<>();
-        for(SQLTerm x:toBeAnded){
-            hashtable.put(x._strColumnName,x._objValue);
+        String tableName = toBeAnded.get(0)._strTableName;
+        Hashtable<String, Object> hashtable = new Hashtable<>();
+        for (SQLTerm x : toBeAnded) {
+            hashtable.put(x._strColumnName, x._objValue);
         }
-        Table t=Table.deserializeTable(tableName);
-        Grid g= t.getSuitableGrid(hashtable);
-        Vector<String> pageReferences=null;
-        if(g==null){
-            pageReferences=t.getVecPageFileName();
-        }else {
+        Table t = Table.deserializeTable(tableName);
+        Grid g = t.getSuitableGrid(hashtable);
+        Vector<String> pageReferences = null;
+        if (g == null) {
+            pageReferences = t.getVecPageFileName();
+        } else {
             pageReferences = g.getSuitablePageReferencesOfSQLterm(toBeAnded);
         }
 
-        LinkedHashSet<String> lhSet = new LinkedHashSet<String>( pageReferences );
+        LinkedHashSet<String> lhSet = new LinkedHashSet<String>(pageReferences);
 
         //clear the vector
         pageReferences.clear();
@@ -428,107 +451,113 @@ public class DBApp implements DBAppInterface {
         //add all unique elements back to the vector
         pageReferences.addAll(lhSet);
 
-        Vector<Hashtable<String,Object>> allTuples=new Vector<>();
+        Vector<Hashtable<String, Object>> allTuples = new Vector<>();
         for (int i = 0; i < pageReferences.size(); i++) {
-            Page p=Page.deserializePage(pageReferences.get(i));
-            Vector<Hashtable<String,Object>> someTuples=p.getSuitableTuplesOfSQLterm(toBeAnded);
+            Page p = Page.deserializePage(pageReferences.get(i));
+            Vector<Hashtable<String, Object>> someTuples = p.getSuitableTuplesOfSQLterm(toBeAnded);
             allTuples.addAll(someTuples);
         }
         return allTuples;
     }
 
     public static int Prec(String st) throws DBAppException {
-        switch (st){
-            case "OR": return 1;
-            case  "AND":return 2;
-            case "XOR" : return 3;
+        switch (st) {
+            case "OR":
+                return 1;
+            case "AND":
+                return 2;
+            case "XOR":
+                return 3;
         }
         throw new DBAppException("Invalid operator");
     }
-    public static Object[] infixToPostfix(Object [] arr) throws DBAppException {
-        Object [] postfix=new Object[arr.length];
-        int i=0;
-        Stack<Object> stack=new Stack<>();
-        for(int j=0;j<arr.length;j++){
-            Object temp=arr[j];
-            if(temp instanceof SQLTerm){
-                postfix[i++]=temp;
-            }else{
-                while(!stack.isEmpty() && Prec((String)temp)<Prec((String) stack.peek()))
-                    postfix[i++]=stack.pop();
+
+    public static Object[] infixToPostfix(Object[] arr) throws DBAppException {
+        Object[] postfix = new Object[arr.length];
+        int i = 0;
+        Stack<Object> stack = new Stack<>();
+        for (int j = 0; j < arr.length; j++) {
+            Object temp = arr[j];
+            if (temp instanceof SQLTerm) {
+                postfix[i++] = temp;
+            } else {
+                while (!stack.isEmpty() && Prec((String) temp) < Prec((String) stack.peek()))
+                    postfix[i++] = stack.pop();
                 stack.push(temp);
             }
         }
-        while(!stack.isEmpty()) postfix[i++]=stack.pop();
+        while (!stack.isEmpty()) postfix[i++] = stack.pop();
         return postfix;
     }
-    public static Object[] clearXOR(SQLTerm [] sqlTerms,String [] arrayOperators) throws DBAppException {
 
-        while(true){
-            int i=0;
-            boolean f=false;
-            in: while(i<arrayOperators.length){
+    public static Object[] clearXOR(SQLTerm[] sqlTerms, String[] arrayOperators) throws DBAppException {
 
-                if(arrayOperators[i].equals("XOR")){
-                    f=true;
+        while (true) {
+            int i = 0;
+            boolean f = false;
+            in:
+            while (i < arrayOperators.length) {
+
+                if (arrayOperators[i].equals("XOR")) {
+                    f = true;
                     break in;
                 }
                 i++;
             }
-            if(!f){
+            if (!f) {
                 break;
             }
 
-            SQLTerm [] newSqlTerms=new SQLTerm[sqlTerms.length+2];
-            String [] newArrayOperators=new String[arrayOperators.length+2];
-            for(int j=0;j<i;j++){
-                newSqlTerms[j]=sqlTerms[j];
-                newArrayOperators[j]=arrayOperators[j];
+            SQLTerm[] newSqlTerms = new SQLTerm[sqlTerms.length + 2];
+            String[] newArrayOperators = new String[arrayOperators.length + 2];
+            for (int j = 0; j < i; j++) {
+                newSqlTerms[j] = sqlTerms[j];
+                newArrayOperators[j] = arrayOperators[j];
             }
-            SQLTerm x=sqlTerms[i];
+            SQLTerm x = sqlTerms[i];
             //SQLTerm notX=new SQLTerm(sqlTerms[i]._strTableName,sqlTerms[i]._strColumnName,NotOperator.parseOperator(sqlTerms[i]._strOperator).apply(),sqlTerms[i]._objValue);
             SQLTerm notX = new SQLTerm();
-            notX._strTableName=sqlTerms[i]._strTableName;
-            notX._strColumnName=sqlTerms[i]._strColumnName;
-            notX._strOperator=NotOperator.parseOperator(sqlTerms[i]._strOperator).apply();
-            notX._objValue=sqlTerms[i]._objValue;
+            notX._strTableName = sqlTerms[i]._strTableName;
+            notX._strColumnName = sqlTerms[i]._strColumnName;
+            notX._strOperator = NotOperator.parseOperator(sqlTerms[i]._strOperator).apply();
+            notX._objValue = sqlTerms[i]._objValue;
 
-            SQLTerm y=sqlTerms[i+1];
+            SQLTerm y = sqlTerms[i + 1];
             //	SQLTerm notY=new SQLTerm(sqlTerms[i+1]._strTableName,sqlTerms[i+1]._strColumnName,NotOperator.parseOperator(sqlTerms[i+1]._strOperator).apply(),sqlTerms[i+1]._objValue);
             SQLTerm notY = new SQLTerm();
-            notY._strTableName=sqlTerms[i+1]._strTableName;
-            notY._strColumnName=sqlTerms[i+1]._strColumnName;
-            notY._strOperator=NotOperator.parseOperator(sqlTerms[i+1]._strOperator).apply();
-            notY._objValue=sqlTerms[i+1]._objValue;
+            notY._strTableName = sqlTerms[i + 1]._strTableName;
+            notY._strColumnName = sqlTerms[i + 1]._strColumnName;
+            notY._strOperator = NotOperator.parseOperator(sqlTerms[i + 1]._strOperator).apply();
+            notY._objValue = sqlTerms[i + 1]._objValue;
 
-            newSqlTerms[i]= x;
-            newSqlTerms[i+1]=notY;
-            newSqlTerms[i+2]=notX;
-            newSqlTerms[i+3]= y;
+            newSqlTerms[i] = x;
+            newSqlTerms[i + 1] = notY;
+            newSqlTerms[i + 2] = notX;
+            newSqlTerms[i + 3] = y;
 
-            newArrayOperators[i]="AND";
-            newArrayOperators[i+1]="OR";
-            newArrayOperators[i+2]="AND";
+            newArrayOperators[i] = "AND";
+            newArrayOperators[i + 1] = "OR";
+            newArrayOperators[i + 2] = "AND";
 
 
-            for(int j=i+1;j<arrayOperators.length;j++){
-                newArrayOperators[j+2]=arrayOperators[j];
+            for (int j = i + 1; j < arrayOperators.length; j++) {
+                newArrayOperators[j + 2] = arrayOperators[j];
             }
 
-            for(int j=i;j+2<sqlTerms.length;j++){
-                newSqlTerms[j+4]=sqlTerms[j+2];
+            for (int j = i; j + 2 < sqlTerms.length; j++) {
+                newSqlTerms[j + 4] = sqlTerms[j + 2];
             }
-            sqlTerms=newSqlTerms;
-            arrayOperators=newArrayOperators;
+            sqlTerms = newSqlTerms;
+            arrayOperators = newArrayOperators;
 
         }
-        Object [] arr=new Object[sqlTerms.length+arrayOperators.length];
-        int j=0;
-        for(int k=0;k<arrayOperators.length;k++){
-            arr[j++]=sqlTerms[k];
-            arr[j++]=arrayOperators[k];
+        Object[] arr = new Object[sqlTerms.length + arrayOperators.length];
+        int j = 0;
+        for (int k = 0; k < arrayOperators.length; k++) {
+            arr[j++] = sqlTerms[k];
+            arr[j++] = arrayOperators[k];
         }
-        arr[j]=sqlTerms[arrayOperators.length];
+        arr[j] = sqlTerms[arrayOperators.length];
 //		HashMap<SQLTerm [],String []> map=new HashMap<>();
 //		map.put(sqlTerms,arrayOperators);
         return arr;
@@ -536,48 +565,48 @@ public class DBApp implements DBAppInterface {
 
 
     private static Vector<Hashtable<String, Object>> executeOR(Object o1, Object o2) throws DBAppException {
-        if (o1 instanceof  SQLTerm){
-            Vector<SQLTerm> v=new Vector<>();
+        if (o1 instanceof SQLTerm) {
+            Vector<SQLTerm> v = new Vector<>();
             v.add((SQLTerm) o1);
-            o1=performAndOnSqlTerms(v);
+            o1 = performAndOnSqlTerms(v);
         }
-        if(o2 instanceof SQLTerm){
-            Vector<SQLTerm> v=new Vector<>();
+        if (o2 instanceof SQLTerm) {
+            Vector<SQLTerm> v = new Vector<>();
             v.add((SQLTerm) o2);
-            o2=performAndOnSqlTerms(v);
+            o2 = performAndOnSqlTerms(v);
         }
-        Vector<Hashtable<String,Object>> v1= (Vector<Hashtable<String, Object>>) o1;
-        Vector<Hashtable<String,Object>> v2= (Vector<Hashtable<String, Object>>) o2;
-        Vector<Vector<Hashtable<String,Object>>> operands = new Vector<>();
+        Vector<Hashtable<String, Object>> v1 = (Vector<Hashtable<String, Object>>) o1;
+        Vector<Hashtable<String, Object>> v2 = (Vector<Hashtable<String, Object>>) o2;
+        Vector<Vector<Hashtable<String, Object>>> operands = new Vector<>();
         operands.add(v1);
         operands.add(v2);
-        Vector<Hashtable<String,Object>> result = removeDuplicates(operands);
+        Vector<Hashtable<String, Object>> result = removeDuplicates(operands);
         return result;
     }
 
 
     private static Vector<Hashtable<String, Object>> executeAND(Object operandA, Object operandB) throws DBAppException {
-        if(operandA instanceof SQLTerm && operandB instanceof SQLTerm){
-            Vector<SQLTerm> terms=new Vector<>();
+        if (operandA instanceof SQLTerm && operandB instanceof SQLTerm) {
+            Vector<SQLTerm> terms = new Vector<>();
             terms.add((SQLTerm) operandA);
             terms.add((SQLTerm) operandB);
             return performAndOnSqlTerms(terms);
-        }else if(operandA instanceof SQLTerm || operandB instanceof SQLTerm){
-            Vector<Hashtable<String,Object>> tuples= (Vector<Hashtable<String, Object>>) ((operandA instanceof SQLTerm)? operandB:operandA);
-            SQLTerm term= (SQLTerm) ((operandB instanceof SQLTerm)? operandB:operandA);
+        } else if (operandA instanceof SQLTerm || operandB instanceof SQLTerm) {
+            Vector<Hashtable<String, Object>> tuples = (Vector<Hashtable<String, Object>>) ((operandA instanceof SQLTerm) ? operandB : operandA);
+            SQLTerm term = (SQLTerm) ((operandB instanceof SQLTerm) ? operandB : operandA);
 
-            Vector<SQLTerm> terms=new Vector<>();
+            Vector<SQLTerm> terms = new Vector<>();
             terms.add(term);
-            return  Page.getHashtablesCompatibleWithSQlTerms(tuples,terms);
-        }else{
-            Vector<Hashtable<String,Object>> tuplesA= (Vector<Hashtable<String, Object>>) operandA;
-            Vector<Hashtable<String,Object>> tuplesB= (Vector<Hashtable<String, Object>>) operandB;
+            return Page.getHashtablesCompatibleWithSQlTerms(tuples, terms);
+        } else {
+            Vector<Hashtable<String, Object>> tuplesA = (Vector<Hashtable<String, Object>>) operandA;
+            Vector<Hashtable<String, Object>> tuplesB = (Vector<Hashtable<String, Object>>) operandB;
 
-            Vector<Hashtable<String,Object>> result=new Vector<>();
+            Vector<Hashtable<String, Object>> result = new Vector<>();
 
             for (int i = 0; i < tuplesA.size(); i++) {
-                Hashtable<String, Object> current=tuplesA.get(i);
-                if(tuplesB.contains(current)){
+                Hashtable<String, Object> current = tuplesA.get(i);
+                if (tuplesB.contains(current)) {
                     result.add(current);
                 }
             }
@@ -671,147 +700,138 @@ public class DBApp implements DBAppInterface {
         return r;
     }
 
-    public static Vector<Vector<SQLTerm>> getANDTerms(Object [] postfixExpresion){
-        Vector<Vector<SQLTerm>> result=new Vector<>();
-        Stack<Vector<SQLTerm>> stack=new Stack<>();
-        for(Object x : postfixExpresion){
-            if(x instanceof String){
-                if(x.equals("AND")){
-                    Vector<SQLTerm> temp1=stack.pop();
-                    Vector<SQLTerm> temp2=stack.pop();
+    public static Vector<Vector<SQLTerm>> getANDTerms(Object[] postfixExpresion) {
+        Vector<Vector<SQLTerm>> result = new Vector<>();
+        Stack<Vector<SQLTerm>> stack = new Stack<>();
+        for (Object x : postfixExpresion) {
+            if (x instanceof String) {
+                if (x.equals("AND")) {
+                    Vector<SQLTerm> temp1 = stack.pop();
+                    Vector<SQLTerm> temp2 = stack.pop();
                     temp1.addAll(temp2);
                     stack.add(temp1);
-                }else{
-                    Vector<SQLTerm> temp1=stack.pop();
-                    Vector<SQLTerm> temp2=stack.pop();
+                } else {
+                    Vector<SQLTerm> temp1 = stack.pop();
+                    Vector<SQLTerm> temp2 = stack.pop();
                     result.add(temp1);
                     result.add(temp2);
                 }
-            }else {
-                Vector<SQLTerm> temp=new Vector<>();
+            } else {
+                Vector<SQLTerm> temp = new Vector<>();
                 temp.add((SQLTerm) x);
                 stack.add(temp);
             }
         }
         //System.out.println(stack.size());
-        while(!stack.isEmpty()){
+        while (!stack.isEmpty()) {
             result.add(stack.pop());
         }
         return result;
     }
+
     public static void main(String[] args) throws DBAppException {
-// System.out.println(new SimpleDateFormat("yyyy-MM-dd").format(new Date(2000,9,6)));
-        //System.out.println(new Date(120,6,90));
         String strTableName = "Student";
         DBApp dbApp = new DBApp();
         Hashtable htblColNameType = new Hashtable();
         htblColNameType.put("id", "java.lang.Integer");
-        htblColNameType.put("age", "java.lang.Integer");
         htblColNameType.put("name", "java.lang.String");
-        //htblColNameType.put("graduationDate", "java.util.Date");
+        htblColNameType.put("gpa", "java.lang.Double");
+        htblColNameType.put("graduationDate", "java.util.Date");
 
         Hashtable htblColNameMin = new Hashtable();
         htblColNameMin.put("id", "0");
-        htblColNameMin.put("age", "0");
-        htblColNameMin.put("name", "a");
-        //htblColNameMin.put("graduationDate", new SimpleDateFormat("yyyy-MM-dd").format(new Date(100,9,6)));
+        htblColNameMin.put("name", "aaaaaa");
+        htblColNameMin.put("gpa", "0");
+        htblColNameMin.put("graduationDate", new SimpleDateFormat("yyyy-MM-dd").format(new Date(100, 9, 6)));
 
         Hashtable htblColNameMax = new Hashtable();
         htblColNameMax.put("id", "200");
-        htblColNameMax.put("age", "150");
         htblColNameMax.put("name", "zzzzzz");
-        //htblColNameMax.put("graduationDate",new SimpleDateFormat("yyyy-MM-dd").format(new Date(200,9,6)));
-
-        //System.out.println(new Date(2020,3,3).toGMTString());
-
-
-        // dbApp.insertIntoTable(strTableName, htblColNameValue);
+        htblColNameMax.put("gpa", "10.0");
+        htblColNameMax.put("graduationDate", new SimpleDateFormat("yyyy-MM-dd").format(new Date(200, 9, 6)));
 
 
-        //t.print();
-
-        // Vector<Comparable> v=new Vector<Comparable>();
-        // v.add(5);//v.add(3);v.add(4);v.add(7);v.add(8);
-
-        // System.out.println(getPositionBinarySearch(v, ));
-        // String table = "students";
         Hashtable<String, Object> row = new Hashtable();
 
         //row.put("age", 54);
         //Hashtable<String, Object> row2 = new Hashtable();
         //row2.put(("age" , 24))
         //row.put("graduationDate",new Date(120,11,1));
-        row.put("age",100);
+        row.put("gpa", 3.5);
         //row.put("id", 12);
-        row.put("name","ahmed18");
-
-
+        //row.put("name", "ahmed18");
 
         // Date dob = new Date(1993 - 1900, 11 - 1, 21);
         // row.put("name", "Ahmed Noor 2");
 
-
-        //Table t = dbApp.deserializeTable(strTableName);
-        //t.print();
-        // System.out.println("done printing");
-        // System.out.println("here");
         boolean create = false;
         if (create) {
             dbApp.createTable(strTableName, "id", htblColNameType, htblColNameMin, htblColNameMax);
 
-            dbApp.createIndex("Student", new String[]{"id", "name"});
-            dbApp.createIndex("Student", new String[]{"age"});
+            dbApp.createIndex("Student", new String[]{"name"});
+            dbApp.createIndex("Student", new String[]{"gpa", "graduationDate"});
         }
-       // dbApp.createIndex("Student", new String[]{"weight"});
-        for (int i = 12; i < 24; i++) {
+        boolean insert=true;
+        int d=0;
+        for (int i = 51; i < 52; i++) {
+            Hashtable htblColNameValue = new Hashtable();
+            htblColNameValue.put("id", new Integer(i));
+            htblColNameValue.put("gpa", 4.0);
+            htblColNameValue.put("name", "ahmed" + i);
+            htblColNameValue.put("graduationDate", new Date(101+i,11,i));
+            if (insert) {
+                dbApp.insertIntoTable("Student", htblColNameValue);
+            }
+        }
+        //int e=10;
+        for (int i = 74; i < 75; i++) {
 
             Hashtable htblColNameValue = new Hashtable();
             htblColNameValue.put("id", new Integer(i));
-            htblColNameValue.put("age", new Integer(i*3));
-            htblColNameValue.put("name", new String("ahmed"+i));
-            //htblColNameValue.put("graduationDate", new Date(101,11,10));
-           if(create)
-                dbApp.insertIntoTable("Student", htblColNameValue);
+            htblColNameValue.put("gpa", new Double(8.0));
+            htblColNameValue.put("name", "fyifh");
+            htblColNameValue.put("graduationDate", new Date(101,11,10));
+            if (insert) {
+               // dbApp.insertIntoTable("Student", htblColNameValue);
+            }
         }
         //row.put("age", 45);
-        // dbApp.deleteFromTable("Student", row);
-        //dbApp.updateTable("Student", "17", row);
+         dbApp.deleteFromTable("Student", row);
+        //dbApp.updateTable("Student", "100", row);
 
         //dbApp.updateTable("Student","12",row);
 
 
-
         SQLTerm[] arrSQLTerms;
-        arrSQLTerms = new SQLTerm[3];
-        for(int i=0;i<arrSQLTerms.length;i++){
-            arrSQLTerms[i]=new SQLTerm();
+        arrSQLTerms = new SQLTerm[2];
+        for (int i = 0; i < arrSQLTerms.length; i++) {
+            arrSQLTerms[i] = new SQLTerm();
         }
         arrSQLTerms[0]._strTableName = "Student";
-        arrSQLTerms[0]._strColumnName= "age";
+        arrSQLTerms[0]._strColumnName = "id";
         arrSQLTerms[0]._strOperator = "<=";
-        arrSQLTerms[0]._objValue = new Integer(66);
+        arrSQLTerms[0]._objValue = new Integer(20);
         arrSQLTerms[1]._strTableName = "Student";
-        arrSQLTerms[1]._strColumnName= "age";
+        arrSQLTerms[1]._strColumnName = "name";
         arrSQLTerms[1]._strOperator = "<";
-        arrSQLTerms[1]._objValue = new Integer(66);
-        arrSQLTerms[2]._strTableName = "Student";
-        arrSQLTerms[2]._strColumnName= "name";
-        arrSQLTerms[2]._strOperator = "=";
-        arrSQLTerms[2]._objValue = "ahmed23";
+        arrSQLTerms[1]._objValue = new String("peter46");
+//        arrSQLTerms[2]._strTableName = "Student";
+//        arrSQLTerms[2]._strColumnName = "name";
+//        arrSQLTerms[2]._strOperator = "=";
+//        arrSQLTerms[2]._objValue = "ahmed23";
 
-        String[]strarrOperators = new String[2];
-        strarrOperators[0] = "XOR";
-        strarrOperators[1] = "XOR";
-        if(true) {
+        String[] strarrOperators = new String[1];
+        strarrOperators[0] = "OR";
+        //strarrOperators[1] = "XOR";
+        if (true) {
             Iterator resultSet = dbApp.selectFromTable(arrSQLTerms, strarrOperators);
-            int c=0;
+            int c = 0;
             while (resultSet.hasNext()) {
                 System.out.println(resultSet.next());
                 c++;
             }
-            System.out.println("size = "+c);
+            System.out.println("size = " + c);
         }
-
         Table t = Table.deserializeTable("Student");
         t.print();
         //System.out.println(getPerm(new int[]{-1,-1,-1,5}));

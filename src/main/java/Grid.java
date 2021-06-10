@@ -173,7 +173,7 @@ public class Grid implements Serializable {
                 for (int j = 0; j < ranges.length; j++) {
                     if (neededDimension.get(dimensions.get(i)) instanceof String) {
                         String s = (String) neededDimension.get(dimensions.get(i));
-                        BigInteger bi = Utilities.calc_Bigint(s, Utilities.maxLength(tableName, dimensions.get(i)));
+                        BigInteger bi = Utilities.calc_Bigint(s, Utilities.maxLength(tableName, dimensions.get(i))-s.length());
                         neededDimension.replace(dimensions.get(i), bi);
                     }
 
@@ -217,7 +217,7 @@ public class Grid implements Serializable {
             if (!(neededDimension.get(dimensions.get(i)) instanceof MyNull)) {
                 if (neededDimension.get(dimensions.get(i)) instanceof String) {
                     String s = (String) neededDimension.get(dimensions.get(i));
-                    BigInteger bi = Utilities.calc_Bigint(s, Utilities.maxLength(tableName, dimensions.get(i)));
+                    BigInteger bi = Utilities.calc_Bigint(s, Utilities.maxLength(tableName, dimensions.get(i))-s.length());
                     neededDimension.replace(dimensions.get(i), bi);
                 }
                 Comparable[] ranges = allRangeMin.get(i);
@@ -317,7 +317,8 @@ public class Grid implements Serializable {
             if (index.get(i) != null) {
                 for (int j = 0; j < index.get(i).size(); j++) {
                     Bucket b = Bucket.deserializeBucket(index.get(i).get(j));
-                    System.out.println(b.getBucketName());
+                    String overflow=(j==0)?"":(" overflow "+index.get(i).get(0));
+                    System.out.println("----"+b.getBucketName()+overflow);
                     b.print();
 
                 }
@@ -362,7 +363,7 @@ public class Grid implements Serializable {
         String colName = sqlTerm._strColumnName;
         Comparable value = (Comparable) sqlTerm._objValue;
         if (value instanceof String) {
-            value = Utilities.calc_Bigint((String) value, Utilities.maxLength(sqlTerm._strTableName, colName));
+            value = Utilities.calc_Bigint((String) value, Utilities.maxLength(sqlTerm._strTableName, colName)-((String) value).length());
         }
         int colNamePos = dimensions.indexOf(colName);
         Comparable[] ranges = allRangeMin.get(colNamePos);

@@ -158,6 +158,9 @@ public class Utilities {
                 } else if (t[2].equalsIgnoreCase("String")) {
                     min = st[5].substring(1, st[5].length() - 1);
                     max = st[6].substring(1, st[6].length() - 1);
+                    String maxLen = (String) max;
+                    String val =(String) value;
+                    if(maxLen.length()<val.length())return false;
                     break;
                 } else if (t[2].equalsIgnoreCase("Date")) {
                     //System.out.println(st[5].substring(1, st[5].length() - 1));
@@ -205,6 +208,35 @@ public class Utilities {
         return null;
     }
 
+    public static Hashtable<String,Object> parseStringToObject(String tableName, Hashtable<String,String> hashtable) throws DBAppException {
+        Hashtable<String, Object> temp=new Hashtable<String,Object>();
+        Hashtable<String,String> colDataType=getColumnDatatype(tableName);
+
+        for (Map.Entry<String,String> entry : hashtable.entrySet()){
+            String dataType=colDataType.getOrDefault(entry.getKey(),null);
+            if(dataType==null){
+                throw  new DBAppException("the column name doesn't exist");
+            }
+            String[] t = dataType.split("[.]");
+            if (t[2].equalsIgnoreCase("Integer")) {
+                temp.put(entry.getKey(),Integer.parseInt(entry.getValue()));
+            } else if (t[2].equalsIgnoreCase("Double")) {
+                temp.put(entry.getKey(),Double.parseDouble(entry.getValue()));
+            } else if (t[2].equalsIgnoreCase("String")) {
+                temp.put(entry.getKey(),entry.getValue());
+            } else if (t[2].equalsIgnoreCase("Date")) {
+                try {
+                    temp.put(entry.getKey(),StringToDate(entry.getValue()));
+                } catch (ParseException e) {
+                    throw new DBAppException("Cannot parse date");
+                }
+            }else{
+                throw new DBAppException("undefined dataType");
+            }
+        }
+
+        return  temp;
+    }
     public static boolean columnexist(String tableName, String colName) {
         Vector<String[]> vector = Utilities.read();
         for (String[] st : vector) {
@@ -287,18 +319,19 @@ public class Utilities {
         //System.out.println("Deletion successful.");
     }
     public static BigInteger calc_Bigint(String x, int index_diff) {
+        x=x.toLowerCase();
         int str_len = x.length();
         BigInteger base = new BigInteger("256");
         BigInteger result = new BigInteger("0");
         int raised_power=Math.max(0,index_diff);
         char curr;
-        int curr_asci;
         for (int i = 0; i < str_len; i++) {
-            raised_power += i;
+            raised_power ++;
             curr = x.charAt(str_len - i - 1);
-            curr_asci = curr;
-            BigInteger curr_BigInteger = BigInteger.valueOf(curr_asci);
-            result = result.add((base.pow(raised_power)).multiply(curr_BigInteger));
+            BigInteger curr_BigInteger = BigInteger.valueOf(curr);
+            BigInteger n=(base.pow(raised_power));
+            n=n.multiply(curr_BigInteger);
+            result = result.add(n);
         }
 
         return result;
