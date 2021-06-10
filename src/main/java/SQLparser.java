@@ -36,6 +36,7 @@ public class SQLparser extends SQLiteParserBaseListener {
 
     }
 
+    // create index on table_name (index_name , index_name* )
     @Override
     public void enterCreate_index_stmt(SQLiteParser.Create_index_stmtContext ctx) throws DBAppException {
         String tableName=ctx.table_name().getText();
@@ -48,6 +49,7 @@ public class SQLparser extends SQLiteParserBaseListener {
         dbApp.createIndex(tableName,colNames);
     }
 
+    //create table table_name (colName colDataType*  , ( Primary key key_name ) )
     @Override
     public void enterCreate_table_stmt(SQLiteParser.Create_table_stmtContext ctx) throws DBAppException {
         String tableName =ctx.table_name().getText();
@@ -89,7 +91,7 @@ public class SQLparser extends SQLiteParserBaseListener {
     }
 
 
-    // DELETE_ FROM_ table_name (WHERE_ column_name ASSIGN literal_value )
+    // DELETE_ FROM_ table_name WHERE_ column_name ASSIGN literal_value colName=value (And colName=value)*
     @Override
     public void enterDelete_stmt(SQLiteParser.Delete_stmtContext ctx) throws DBAppException {
         String tableName=ctx.table_name().getText();
@@ -109,6 +111,7 @@ public class SQLparser extends SQLiteParserBaseListener {
         dbApp.deleteFromTable(tableName,Utilities.parseStringToObject(tableName,htblColNameValue));
     }
 
+    // insert into table_name (colName,colName*) values (value,value*)
     @Override
     public void enterInsert_stmt(SQLiteParser.Insert_stmtContext ctx) throws DBAppException {
         String tableName=ctx.table_name().getText();
@@ -128,6 +131,7 @@ public class SQLparser extends SQLiteParserBaseListener {
         dbApp.insertIntoTable(tableName,Utilities.parseStringToObject(tableName,htblColNameValue));
     }
 
+    // select all from table_name where colName operator value (condition colName operator value)*
     @Override
     public void enterSelect_stmt(SQLiteParser.Select_stmtContext ctx) throws DBAppException {
 
@@ -161,6 +165,7 @@ public class SQLparser extends SQLiteParserBaseListener {
         dbApp.selectFromTable(sqlTerms,strarrOperators);
     }
 
+    // update table_name set primaryKeyValue (colName value)*
     @Override
     public void enterUpdate_stmt(SQLiteParser.Update_stmtContext ctx) throws DBAppException {
         String tableName=ctx.table_name().getText();

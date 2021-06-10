@@ -71,8 +71,7 @@ literal_value:
 
 insert_stmt:
       INSERT_  INTO_  table_name
-     ( OPEN_PAR column_name ( COMMA column_name)* CLOSE_PAR )
-     ( VALUES_ OPEN_PAR literal_value (COMMA literal_value)* CLOSE_PAR )
+     ( OPEN_PAR column_name literal_value (COMMA column_name literal_value)* CLOSE_PAR )
 ;
 
 

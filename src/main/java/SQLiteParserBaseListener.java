@@ -51,7 +51,7 @@ public class SQLiteParserBaseListener implements SQLiteParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterCreate_index_stmt(SQLiteParser.Create_index_stmtContext ctx) throws DBAppException, DBAppException { }
+	@Override public void enterCreate_index_stmt(SQLiteParser.Create_index_stmtContext ctx) throws DBAppException { }
 	/**
 	 * {@inheritDoc}
 	 *

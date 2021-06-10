@@ -1,3 +1,4 @@
+// Generated from E:/GUC/S6/Data Bases II/DP2project/src/main/java\SQLiteParser.g4 by ANTLR 4.9.1
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**
